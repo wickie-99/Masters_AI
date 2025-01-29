@@ -67,8 +67,8 @@ y_backfire = backfire_intensity  # Backfire Intensity
 y_performance = performance  # Engine Performance
 
 # Split dataset for training
-X_train_base, X_test_base, X_train_cylinder, X_test_cylinder, y_train, y_test = train_test_split(
-    X_base, X_in_cylinder, y_backfire, test_size=0.2, random_state=42)
+X_train_base, X_test_base, X_train_cylinder, X_test_cylinder, y_train_backfire, y_test_backfire, y_train_performance, y_test_performance = train_test_split(
+    X_base, X_in_cylinder, y_backfire, y_performance, test_size=0.2, random_state=42)
 
 # Define Input Layers
 input_base = Input(shape=(3,), name="Base_Input")  # VT, IT, IP
@@ -82,14 +82,19 @@ hidden_in_cylinder = Dense(32, activation="relu")(input_in_cylinder)
 # Merge the two hidden layers
 merged = Concatenate()([hidden_base, hidden_in_cylinder])
 merged = Dense(32, activation="relu")(merged)
-output = Dense(1, activation="linear", name="Backfire_Intensity_Output")(merged)
+output_backfire = Dense(1, activation="linear", name="Backfire_Intensity_Output")(merged)
+output_performance = Dense(1, activation="linear", name="Performance_Output")(hidden_base)
 
-# Define Model
-nn_backfire = Model(inputs=[input_base, input_in_cylinder], outputs=output)
+# Define Models
+nn_backfire = Model(inputs=[input_base, input_in_cylinder], outputs=output_backfire)
 nn_backfire.compile(optimizer=Adam(learning_rate=0.001), loss="mse", metrics=["mae"])
 
-# Train the model
-nn_backfire.fit([X_train_base, X_train_cylinder], y_train, epochs=100, batch_size=16, validation_split=0.2, verbose=1)
+nn_performance = Model(inputs=input_base, outputs=output_performance)
+nn_performance.compile(optimizer=Adam(learning_rate=0.001), loss="mse", metrics=["mae"])
+
+# Train the models
+nn_backfire.fit([X_train_base, X_train_cylinder], y_train_backfire, epochs=100, batch_size=16, validation_split=0.2, verbose=1)
+nn_performance.fit(X_train_base, y_train_performance, epochs=100, batch_size=16, validation_split=0.2, verbose=1)
 
 # -----------------------------
 # Step 3: Multi-Objective Optimization Using pymoo NSGA-II
@@ -112,6 +117,7 @@ class EngineOptimizationProblem(Problem):
             nn_backfire.predict([X, X_in_cylinder]),  # Backfire Intensity (Minimize)
             -nn_performance.predict(X)  # Engine Performance (Maximize, so we minimize negative value)
         ])
+
 
 problem = EngineOptimizationProblem()
 algorithm = NSGA2(
