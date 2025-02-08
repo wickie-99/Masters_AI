@@ -51,6 +51,33 @@ def main_effects_plot(excel_file, result_column):
     plt.xticks(rotation=45, ha="right")
     plt.show()
 
+def interaction_effects_plot(excel_file, result_column):
+    df = pd.read_excel(excel_file)
+    factors = [col for col in df.columns if col!= result_column]
+    interactions = list(itertools.combinations(factors, 2))
+
+    interaction_effects = []
+    for interaction in interactions:
+        grouped = df.groupby(list(interaction))[result_column].mean()
+        interaction_effect = (grouped[1,1] - grouped[1,-1] - grouped[-1,1] + grouped[-1,-1])
+        interaction_effects.append(interaction_effect)
+    
+    interaction_labels = [f"{x[0]} x {x[1]}" for x in interactions]
+    fig, ax = plt.subplots(figsize = (5,5))
+    bars = ax.bar(interaction_labels, interaction_effects)
+
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2, yval + 0.01*abs(yval),
+                round(yval,2), ha='center', va='bottom')
+    
+    ax.set_ylabel("Interaction Effect")
+    ax.set_title("Two-way Interaction Effects")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
+
 def interaction_point_plot(excel_file, result_column):
     df = pd.read_excel(excel_file)
     factors = [col for col in df.columns if col != result_column]
@@ -154,3 +181,26 @@ def plot_contour(x_name, y_name, held_factor, held_value, title, model):
     plt.xlabel(x_name)
     plt.ylabel(y_name)
     plt.show()
+
+
+print('Hello DoE')
+
+factors = ['T', 'P', 'CoF', 'RPM']
+df = create_full_factorial_design(factors, randomize=False)
+df.to_excel('Full_Factorial_Design_2.xlsx', index=False)
+
+excel_file = 'Full_Factorial_Design.xlsx'
+results_column = 'Results'
+main_effects_plot(excel_file, results_column)
+interaction_effects_plot(excel_file, results_column)
+interaction_point_plot(excel_file, results_column)
+
+df = pd.read_excel(excel_file)
+
+formula = 'Results ~ T + CoF + RPM + T:CoF + T:RPM + T:RPM:CoF'
+model = ols(formula, data=df).fit()
+
+anova_table = sm.stats.anova_lm(model, typ=1)
+print(anova_table)
+
+diagnostic_plots(model)
